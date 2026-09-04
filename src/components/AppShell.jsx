@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 
@@ -19,24 +19,34 @@ export default function AppShell() {
     }
   }, [menuOpen])
 
+  const closeMenu = () => setMenuOpen(false)
+
+  const generateAction = (
+    <NavLink to="/add" className="shell-generate">
+      Генерация
+    </NavLink>
+  )
+
   return (
     <div className="app-shell">
-      {menuOpen ? (
-        <button
-          type="button"
-          className="app-backdrop"
-          aria-label="Закрыть меню"
-          onClick={() => setMenuOpen(false)}
-        />
-      ) : null}
-      <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
-      <div className="app-main">
-        <Topbar
-          menuOpen={menuOpen}
-          onMenuToggle={() => setMenuOpen((open) => !open)}
-        />
+      <Topbar
+        menuOpen={menuOpen}
+        onMenuToggle={() => setMenuOpen((open) => !open)}
+      />
+      <div className="app-body">
+        {menuOpen ? (
+          <button
+            type="button"
+            className="app-backdrop"
+            aria-label="Закрыть меню"
+            onClick={closeMenu}
+          />
+        ) : null}
+        <div id="app-sidebar" className={menuOpen ? 'app-nav is-open' : 'app-nav'}>
+          <Sidebar onNavigate={closeMenu} />
+        </div>
         <section className="card page-card app-content">
-          <Outlet />
+          <Outlet context={{ generateAction }} />
         </section>
       </div>
     </div>
