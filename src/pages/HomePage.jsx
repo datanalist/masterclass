@@ -3,7 +3,7 @@ import { CATEGORIES, FEATURES, INCLUDED } from '../data/catalog'
 
 export default function HomePage() {
   return (
-    <div className="shell stack">
+    <div className="stack">
       <section className="card hero">
         <div className="hero-left">
           <span className="badge">React · Supabase · Vercel</span>
