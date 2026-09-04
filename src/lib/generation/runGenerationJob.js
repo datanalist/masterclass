@@ -1,5 +1,7 @@
+import { sanitizeDetectedLabel } from '../../../server/generation/prompt.js'
 import { classifyProduct } from './classifyProduct.js'
 import { compressProductImage, extensionForBlob } from './compressProductImage.js'
+import { detectKeySubject } from './detectKeySubject.js'
 import { GenerateCardImageError, generateCardImage } from './generateCardImage.js'
 
 export const PRODUCT_UPLOADS_BUCKET = 'product-uploads'
@@ -28,16 +30,17 @@ export class GenerationJobError extends Error {
  * @property {string} [wishes]
  * @property {number} objectCount
  * @property {AbortSignal} [signal]
- * @property {(phase: 'uploading' | 'queued' | 'running' | 'succeeded' | 'failed') => void} [onPhase]
+ * @property {(phase: 'uploading' | 'detecting' | 'queued' | 'running' | 'succeeded' | 'failed') => void} [onPhase]
  * @property {(progress: { current: number, total: number }) => void} [onProgress]
  * @property {typeof generateCardImage} [generate]
  * @property {(file: File) => Promise<Blob>} [compress]
  * @property {typeof classifyProduct} [classify]
+ * @property {typeof detectKeySubject} [detect]
  */
 
 /**
- * Upload source → classify_product → charge via start_generation →
- * generate one OpenRouter image per object_count.
+ * Upload source → detect key subject (marketplace cards) → classify_product →
+ * charge via start_generation → generate one OpenRouter image per object_count.
  *
  * @param {RunGenerationJobInput} input
  */
@@ -58,6 +61,7 @@ export async function runGenerationJob(input) {
     generate = generateCardImage,
     compress = compressProductImage,
     classify = classifyProduct,
+    detect = detectKeySubject,
   } = input
 
   throwIfAborted(signal)
@@ -99,7 +103,16 @@ export async function runGenerationJob(input) {
     }
     productId = product.id
 
-    await classify(client, { productId, categoryId, detectedLabel: null })
+    const detectedLabel = await detectProductLabel({
+      generationType,
+      productId,
+      categoryId,
+      accessToken,
+      signal,
+      detect,
+      onPhase,
+    })
+    await classifyProductSafe(classify, client, { productId, categoryId, detectedLabel })
     throwIfAborted(signal)
 
     onPhase?.('queued')
@@ -130,7 +143,7 @@ export async function runGenerationJob(input) {
     }
 
     onPhase?.('succeeded')
-    return { generationId, productId, images }
+    return { generationId, productId, images, detectedLabel }
   } catch (error) {
     const mapped = mapJobError(error)
     if (generationId && isAlreadyCompletedConflict(mapped)) {
@@ -209,6 +222,65 @@ export async function failOwnGeneration(client, generationId, message) {
   })
   if (error) {
     throw mapRpcError(error, 'Не удалось зафиксировать ошибку генерации')
+  }
+}
+
+/**
+ * Marketplace cards: detect a key subject, persist via classify_product.
+ * Photo jobs skip the extra vision call. Detect failures do not abort the job.
+ * @param {{
+ *   generationType: 'photo' | 'card',
+ *   productId: string,
+ *   categoryId: string,
+ *   accessToken: string,
+ *   signal?: AbortSignal,
+ *   detect: typeof detectKeySubject,
+ *   onPhase?: (phase: 'detecting') => void,
+ * }} input
+ */
+async function detectProductLabel(input) {
+  if (input.generationType !== 'card') return null
+
+  input.onPhase?.('detecting')
+  throwIfAborted(input.signal)
+
+  try {
+    const result = await input.detect(
+      { productId: input.productId, categoryId: input.categoryId },
+      {
+        signal: input.signal,
+        headers: { Authorization: `Bearer ${input.accessToken}` },
+      },
+    )
+    if (result?.fallback) {
+      console.warn('[generation] key-subject fallback', result.reason ?? 'empty_label')
+    }
+    return sanitizeDetectedLabel(result?.detectedLabel)
+  } catch (error) {
+    if (error instanceof GenerateCardImageError && error.code === 'aborted') {
+      throw error
+    }
+    if (error instanceof GenerateCardImageError && error.code === 'unauthorized') {
+      throw error
+    }
+    console.warn('[generation] key-subject fallback', error)
+    return null
+  }
+}
+
+/**
+ * Persist category + optional label. A rejected detected_label must not block charge.
+ * @param {typeof classifyProduct} classify
+ * @param {import('@supabase/supabase-js').SupabaseClient} client
+ * @param {{ productId: string, categoryId: string, detectedLabel?: string | null }} input
+ */
+async function classifyProductSafe(classify, client, input) {
+  try {
+    await classify(client, input)
+  } catch (error) {
+    if (!input.detectedLabel) throw error
+    console.warn('[generation] classify_product rejected label, fallback', error)
+    await classify(client, { ...input, detectedLabel: null })
   }
 }
 

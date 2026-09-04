@@ -11,7 +11,7 @@ import {
   loadGenerationConfig,
 } from './config.js'
 import { GenerationError, validationError } from './errors.js'
-import { buildImagePrompt } from './prompt.js'
+import { buildImagePrompt, sanitizeDetectedLabel } from './prompt.js'
 
 /**
  * @typedef {object} SourceImageInput
@@ -26,6 +26,7 @@ import { buildImagePrompt } from './prompt.js'
  * @property {string} [prompt]
  * @property {string} [wishes]
  * @property {string} [presentationPrompt]
+ * @property {string | null} [detectedLabel]
  * @property {SourceImageInput} [sourceImage]
  * @property {string} [aspectRatio]
  * @property {string} [resolution]
@@ -149,6 +150,8 @@ export function normalizeInput(input) {
     'presentationPrompt',
     MAX_PRESENTATION_LENGTH,
   )
+  const detectedLabel = sanitizeDetectedLabel(input.detectedLabel) ?? undefined
+
   if (!prompt && !wishes && !presentationPrompt) {
     throw validationError('Provide prompt, wishes, or presentationPrompt')
   }
@@ -170,6 +173,7 @@ export function normalizeInput(input) {
     prompt,
     wishes,
     presentationPrompt,
+    detectedLabel,
     aspectRatio,
     resolution,
     sourceImageUrl: normalizeSourceImage(input.sourceImage),

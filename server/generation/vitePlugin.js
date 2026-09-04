@@ -1,6 +1,8 @@
+import { writeDetectNodeResponse } from './detectHttp.js'
 import { writeNodeResponse } from './http.js'
 
 const GENERATE_PATH = '/api/generate-card'
+const DETECT_PATH = '/api/detect-subject'
 
 /**
  * Serves the generation endpoint during `vite` / `vite preview`
@@ -39,12 +41,18 @@ function applyOpenRouterEnv(env) {
 function createMiddleware() {
   return (req, res, next) => {
     const path = req.url?.split('?')[0]?.replace(/\/$/, '')
-    if (path !== GENERATE_PATH) {
+    const write =
+      path === GENERATE_PATH
+        ? writeNodeResponse
+        : path === DETECT_PATH
+          ? writeDetectNodeResponse
+          : null
+    if (!write) {
       next()
       return
     }
 
-    writeNodeResponse(req, res).catch((error) => {
+    write(req, res).catch((error) => {
       if (!res.headersSent) {
         res.statusCode = 500
         res.setHeader('Content-Type', 'application/json; charset=utf-8')

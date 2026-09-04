@@ -113,6 +113,7 @@ export async function dispatchGenerateCard(req, deps = {}) {
           wishes || presentationPrompt
             ? undefined
             : 'Commercial product photo from the reference image',
+        detectedLabel: job.detectedLabel ?? undefined,
         sourceImage: { url: job.sourceImageUrl },
       },
       { fetch: deps.fetch, env: deps.env },

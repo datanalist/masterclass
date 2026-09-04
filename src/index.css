@@ -909,6 +909,7 @@ textarea {
 }
 
 .modal-status.is-uploading,
+.modal-status.is-detecting,
 .modal-status.is-queued,
 .modal-status.is-running {
   color: var(--lilac-text);
