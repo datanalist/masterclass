@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 const OUTPUT_BUCKET = 'generation-outputs'
 
 export default function CatalogPage() {
-  const { generateAction, catalogEpoch } = useOutletContext()
+  const { generateAction, catalogEpoch, openAuth } = useOutletContext()
   const { session, ready } = useAuth()
   const [rows, setRows] = useState([])
   const [loadError, setLoadError] = useState('')
@@ -108,7 +108,9 @@ export default function CatalogPage() {
       {ready && !session ? (
         <p className="empty">
           Войдите, чтобы видеть сохранённые генерации.{' '}
-          <Link to="/auth">Авторизация</Link>
+          <button type="button" className="text-link" onClick={openAuth}>
+            Войти
+          </button>
         </p>
       ) : null}
       {loadError ? <p className="modal-status is-failed">{loadError}</p> : null}

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { useOutletContext } from 'react-router-dom'
 import PageLayout from '../components/PageLayout'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -10,6 +10,7 @@ const PACKAGES = [
 ]
 
 export default function ProfilePage() {
+  const { openAuth } = useOutletContext()
   const { session, profile, signOut } = useAuth()
 
   return (
@@ -34,9 +35,9 @@ export default function ProfilePage() {
             Выйти
           </button>
         ) : (
-          <Link className="btn" to="/auth">
+          <button type="button" className="btn" onClick={openAuth}>
             Войти
-          </Link>
+          </button>
         )}
       </div>
       {!supabase ? <p className="muted">Supabase не настроен.</p> : null}

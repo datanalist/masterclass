@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 
-export default function Topbar({ menuOpen, onMenuToggle }) {
+export default function Topbar({ menuOpen, onMenuToggle, onOpenAuth }) {
   const { session, profile, ready } = useAuth()
   const balance = profile?.points_balance ?? 0
 
@@ -36,9 +36,9 @@ export default function Topbar({ menuOpen, onMenuToggle }) {
             </Link>
           </>
         ) : (
-          <Link to="/auth" className="top-btn top-btn-dark">
+          <button type="button" className="top-btn top-btn-dark" onClick={onOpenAuth}>
             Войти
-          </Link>
+          </button>
         )}
       </div>
     </header>
