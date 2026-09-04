@@ -895,6 +895,20 @@ textarea {
   font-weight: 600;
 }
 
+.modal-status {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.modal-status.is-succeeded {
+  color: #157a3a;
+}
+
+.modal-status.is-failed {
+  color: #b42318;
+}
+
 @media (max-width: 640px) {
   .modal {
     padding: 22px 18px 18px;
