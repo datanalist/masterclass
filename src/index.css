@@ -799,6 +799,10 @@ textarea {
   backdrop-filter: blur(6px);
 }
 
+.modal-backdrop-auth {
+  z-index: 40;
+}
+
 .modal {
   width: min(520px, 100%);
   max-height: min(92svh, 860px);
@@ -933,6 +937,33 @@ textarea {
   margin: 0 0 10px;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.auth-switch {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.auth-switch button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--chip-text);
+  font-weight: 700;
+}
+
+.auth-switch button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--chip-text);
+  font-weight: 700;
 }
 
 .results-page {

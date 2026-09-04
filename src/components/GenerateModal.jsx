@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useRunGeneration } from '../lib/generation'
 import { supabase } from '../lib/supabase'
@@ -9,7 +8,7 @@ const TYPE_OPTIONS = [
   { id: 'card', label: 'Карточка' },
 ]
 
-export default function GenerateModal({ open, onClose, onCompleted }) {
+export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }) {
   const { session, user, profile, refreshProfile } = useAuth()
   const { status, progress, error, result, run, reset, isBusy } = useRunGeneration()
   const [categories, setCategories] = useState([])
@@ -181,9 +180,9 @@ export default function GenerateModal({ open, onClose, onCompleted }) {
           <div className="modal-form">
             <p className="muted">Войдите, чтобы запускать генерации и списывать баллы.</p>
             <div className="modal-actions">
-              <Link className="btn-primary" to="/auth" onClick={closeQuietly}>
+              <button type="button" className="btn-primary" onClick={() => onOpenAuth?.()}>
                 Войти
-              </Link>
+              </button>
             </div>
           </div>
         ) : (
