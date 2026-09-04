@@ -85,8 +85,16 @@ export function AuthProvider({ children }) {
       },
       signUp: async (email, password) => {
         if (!supabase) throw new Error('Supabase не настроен')
-        const { data, error } = await supabase.auth.signUp({ email, password })
+        const { error } = await supabase.rpc('register_account', {
+          p_email: email,
+          p_password: password,
+        })
         if (error) throw error
+        const { data, error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        if (loginError) throw loginError
         return data
       },
       signOut: async () => {

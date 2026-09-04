@@ -41,14 +41,17 @@ export default function AuthPage() {
       if (password !== confirm) {
         throw new Error('Пароли не совпадают')
       }
-      const data = await signUp(email.trim(), password)
-      if (!data?.session) {
-        setMessage('Проверьте почту, чтобы подтвердить регистрацию.')
-        return
-      }
+      await signUp(email.trim(), password)
       navigate('/')
     } catch (err) {
-      setError(err?.message || 'Не удалось зарегистрироваться')
+      const text = String(err?.message || '')
+      if (text.includes('already_registered')) {
+        setError('Этот email уже зарегистрирован. Войдите в аккаунт.')
+      } else if (text.includes('weak_password')) {
+        setError('Пароль должен быть не короче 6 символов')
+      } else {
+        setError(text || 'Не удалось зарегистрироваться')
+      }
     } finally {
       setBusy(false)
     }
@@ -77,7 +80,9 @@ export default function AuthPage() {
 
   return (
     <PageLayout title="Авторизация">
-      <p className="muted">Войдите или зарегистрируйтесь, чтобы запускать генерации.</p>
+      <p className="muted">
+        Войдите или зарегистрируйтесь по email и паролю. Подтверждение письмом не нужно.
+      </p>
       <form className="form-grid" onSubmit={handleSignIn}>
         <label>
           Email
