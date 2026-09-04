@@ -294,6 +294,13 @@ export default function GenerateModal({ open, onClose, onCompleted }) {
             {status === 'succeeded' && result?.generationId ? (
               <>
                 <p className="modal-status is-succeeded">Результат сохранён в каталог.</p>
+                {generationType === 'card' ? (
+                  <p className="muted">
+                    {result.detectedLabel
+                      ? `Предмет: ${result.detectedLabel}`
+                      : 'Не удалось определить, карточка по всему кадру'}
+                  </p>
+                ) : null}
                 {result.images?.[0]?.image?.url ? (
                   <img src={result.images[0].image.url} alt="" className="generation-thumb" />
                 ) : null}
@@ -347,6 +354,7 @@ function clampObjectCount(value) {
 
 function statusText(status, progress) {
   if (status === 'uploading') return 'Загрузка фото…'
+  if (status === 'detecting') return 'Определяем предмет на фото…'
   if (status === 'queued') return 'Списание баллов…'
   if (status === 'running') {
     if (progress?.total) return `Генерация ${progress.current} из ${progress.total}…`

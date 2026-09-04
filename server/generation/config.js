@@ -1,13 +1,18 @@
 import { configError } from './errors.js'
 
 export const DEFAULT_IMAGE_MODEL = 'google/gemini-3.1-flash-image'
+/** Cheap multimodal text model — never the image-generation slug. */
+export const DEFAULT_DETECT_MODEL = 'google/gemini-2.5-flash-lite'
 export const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1'
 export const DEFAULT_TIMEOUT_MS = 55_000
+export const DEFAULT_DETECT_TIMEOUT_MS = 15_000
 export const DEFAULT_RESOLUTION = '1K'
 export const DEFAULT_ASPECT_RATIO = '1:1'
 export const MAX_WISHES_LENGTH = 2000
 export const MAX_PROMPT_LENGTH = 4000
 export const MAX_PRESENTATION_LENGTH = 500
+/** Matches classify_product p_detected_label limit. */
+export const MAX_DETECTED_LABEL_LENGTH = 200
 /** Base64/data-URL cap so the JSON body stays under Vercel ~4.5 MB. */
 export const MAX_SOURCE_IMAGE_CHARS = 2_800_000
 /** Reject request bodies before the platform HTML 413. */
@@ -65,6 +70,38 @@ export function loadGenerationConfig(env = process.env) {
     timeoutMs,
     httpReferer: env.OPENROUTER_HTTP_REFERER?.trim() || undefined,
     appTitle: env.OPENROUTER_APP_TITLE?.trim() || 'Master Class',
+  }
+}
+
+/**
+ * @typedef {object} DetectEnv
+ * @property {string} apiKey
+ * @property {string} baseUrl
+ * @property {string} model
+ * @property {number} timeoutMs
+ * @property {string} [httpReferer]
+ * @property {string} [appTitle]
+ */
+
+/**
+ * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
+ * @returns {DetectEnv}
+ */
+export function loadDetectConfig(env = process.env) {
+  const shared = loadGenerationConfig(env)
+  const timeoutMs = parseTimeout(
+    env.OPENROUTER_DETECT_TIMEOUT_MS,
+    DEFAULT_DETECT_TIMEOUT_MS,
+    'OPENROUTER_DETECT_TIMEOUT_MS',
+  )
+  const model = env.OPENROUTER_DETECT_MODEL?.trim() || DEFAULT_DETECT_MODEL
+  return {
+    apiKey: shared.apiKey,
+    baseUrl: shared.baseUrl,
+    model,
+    timeoutMs,
+    httpReferer: shared.httpReferer,
+    appTitle: shared.appTitle,
   }
 }
 

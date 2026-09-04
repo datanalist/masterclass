@@ -28,8 +28,9 @@ test('isAlreadyCompletedConflict only matches completed 409s', () => {
   )
 })
 
-test('runGenerationJob classifies then charges before generating', async () => {
+test('runGenerationJob detects a key subject for marketplace cards and classifies it', async () => {
   const classified = []
+  const detectCalls = []
   const order = []
   const client = createJobClient({
     onRpc: (name) => order.push(name),
@@ -43,20 +44,141 @@ test('runGenerationJob classifies then charges before generating', async () => {
     categoryId: 'accessories',
     objectCount: 1,
     compress: async (file) => file,
+    detect: async (input) => {
+      detectCalls.push(input)
+      order.push('detect')
+      return { detectedLabel: 'gold hoop earrings', fallback: false }
+    },
     classify: async (_client, input) => {
       classified.push(input)
       order.push('classify')
     },
     generate: async () => ({ ok: true, image: { url: 'https://signed.example/out.png' } }),
   })
+  assert.deepEqual(detectCalls, [{ productId: PRODUCT_ID, categoryId: 'accessories' }])
   assert.deepEqual(classified, [
-    { productId: PRODUCT_ID, categoryId: 'accessories', detectedLabel: null },
+    { productId: PRODUCT_ID, categoryId: 'accessories', detectedLabel: 'gold hoop earrings' },
   ])
-  assert.equal(result.generationId, GENERATION_ID)
+  assert.equal(result.detectedLabel, 'gold hoop earrings')
   assert.deepEqual(
-    order.filter((step) => step === 'classify' || step === 'start_generation'),
-    ['classify', 'start_generation'],
+    order.filter((step) => step === 'detect' || step === 'classify' || step === 'start_generation'),
+    ['detect', 'classify', 'start_generation'],
   )
+})
+
+test('runGenerationJob does not classify or charge when detect is unauthorized', async () => {
+  const classified = []
+  const rpcCalls = []
+  const client = createJobClient({
+    onRpc: (name) => rpcCalls.push(name),
+  })
+  await assert.rejects(
+    () =>
+      runGenerationJob({
+        client,
+        userId: USER_ID,
+        accessToken: 'token',
+        file: new Blob(['x'], { type: 'image/jpeg' }),
+        generationType: 'card',
+        categoryId: 'accessories',
+        objectCount: 1,
+        compress: async (file) => file,
+        detect: async () => {
+          throw new GenerateCardImageError('Нужно войти в аккаунт', {
+            code: 'unauthorized',
+            status: 401,
+          })
+        },
+        classify: async (_client, input) => {
+          classified.push(input)
+        },
+        generate: async () => ({ ok: true, image: { url: 'https://signed.example/out.png' } }),
+      }),
+    (error) => error.code === 'unauthorized',
+  )
+  assert.deepEqual(classified, [])
+  assert.ok(!rpcCalls.includes('start_generation'))
+})
+
+test('runGenerationJob falls back if classify rejects the detected label', async () => {
+  const classified = []
+  const rpcCalls = []
+  const client = createJobClient({
+    onRpc: (name) => rpcCalls.push(name),
+  })
+  const result = await runGenerationJob({
+    client,
+    userId: USER_ID,
+    accessToken: 'token',
+    file: new Blob(['x'], { type: 'image/jpeg' }),
+    generationType: 'card',
+    categoryId: 'accessories',
+    objectCount: 1,
+    compress: async (file) => file,
+    detect: async () => ({ detectedLabel: 'gold hoop earrings', fallback: false }),
+    classify: async (_client, input) => {
+      classified.push(input)
+      if (input.detectedLabel) {
+        throw new Error('Detected label is too long')
+      }
+    },
+    generate: async () => ({ ok: true, image: { url: 'https://signed.example/out.png' } }),
+  })
+  assert.deepEqual(
+    classified.map((item) => item.detectedLabel),
+    ['gold hoop earrings', null],
+  )
+  assert.ok(rpcCalls.includes('start_generation'))
+  assert.equal(result.detectedLabel, 'gold hoop earrings')
+})
+
+test('runGenerationJob continues when key-subject detect falls back', async () => {
+  const classified = []
+  const client = createJobClient()
+  await runGenerationJob({
+    client,
+    userId: USER_ID,
+    accessToken: 'token',
+    file: new Blob(['x'], { type: 'image/jpeg' }),
+    generationType: 'card',
+    categoryId: 'other',
+    wishes: 'белый фон',
+    objectCount: 1,
+    compress: async (file) => file,
+    detect: async () => ({ detectedLabel: null, fallback: true, reason: 'upstream' }),
+    classify: async (_client, input) => {
+      classified.push(input)
+    },
+    generate: async () => ({ ok: true, image: { url: 'https://signed.example/out.png' } }),
+  })
+  assert.equal(classified[0].detectedLabel, null)
+  assert.equal(classified[0].categoryId, 'other')
+})
+
+test('runGenerationJob skips detect for photo jobs', async () => {
+  let detectCalled = false
+  const classified = []
+  const client = createJobClient()
+  await runGenerationJob({
+    client,
+    userId: USER_ID,
+    accessToken: 'token',
+    file: new Blob(['x'], { type: 'image/jpeg' }),
+    generationType: 'photo',
+    categoryId: 'other',
+    objectCount: 1,
+    compress: async (file) => file,
+    detect: async () => {
+      detectCalled = true
+      return { detectedLabel: 'should-not-run', fallback: false }
+    },
+    classify: async (_client, input) => {
+      classified.push(input)
+    },
+    generate: async () => ({ ok: true, image: { url: 'https://signed.example/out.png' } }),
+  })
+  assert.equal(detectCalled, false)
+  assert.equal(classified[0].detectedLabel, null)
 })
 
 test('runGenerationJob treats already-completed 409 as success and does not refund', async () => {
