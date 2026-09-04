@@ -14,8 +14,12 @@ export default function Topbar({ menuOpen, onMenuToggle }) {
         >
           Меню
         </button>
-        <NavLink to="/" className="logo">
-          mapEstate
+        <NavLink to="/" end className="brand">
+          <span className="brand-mark">MK</span>
+          <span className="brand-copy">
+            <span className="brand-name">MK</span>
+            <span className="brand-sub">React · Supabase · Vercel</span>
+          </span>
         </NavLink>
       </div>
       <div className="app-topbar-right">
@@ -24,12 +28,12 @@ export default function Topbar({ menuOpen, onMenuToggle }) {
             <Link to="/profile" className="balance-chip">
               {sessionStub.balance} баллов
             </Link>
-            <Link to="/profile" className="avatar" aria-label="Профиль">
-              {sessionStub.initial}
+            <Link to="/profile" className="top-btn top-btn-dark">
+              Профиль
             </Link>
           </>
         ) : (
-          <Link to="/auth" className="btn">
+          <Link to="/auth" className="top-btn top-btn-dark">
             Войти
           </Link>
         )}

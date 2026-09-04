@@ -1,19 +1,28 @@
-import { Link } from 'react-router-dom'
-import PageLayout from '../components/PageLayout'
+import { useOutletContext } from 'react-router-dom'
 
 export default function CatalogPage() {
+  const { generateAction } = useOutletContext()
+
   return (
-    <PageLayout title="Каталог генераций">
-      <p className="muted">
-        Здесь появится список созданных товаров. Сейчас это заглушка без данных и
-        повторной генерации.
-      </p>
-      <div className="empty">Пока нет сохранённых генераций.</div>
-      <div className="actions">
-        <Link className="btn" to="/add">
-          Добавить товар
-        </Link>
+    <div className="results">
+      <div className="results-copy">
+        <h1 className="results-title">Ваши результаты</h1>
+        <p className="results-lead">
+          Сохранённые генерации, быстрый повторный доступ и управление созданными
+          карточками.
+        </p>
       </div>
-    </PageLayout>
+      <div className="results-stats">
+        {generateAction}
+        <div className="stat-box">
+          <p className="stat-label">Всего</p>
+          <p className="stat-value">24 генерации</p>
+        </div>
+        <div className="stat-box">
+          <p className="stat-label">Последняя</p>
+          <p className="stat-value">Сегодня в 14:20</p>
+        </div>
+      </div>
+    </div>
   )
 }
