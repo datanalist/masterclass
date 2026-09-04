@@ -1,7 +1,10 @@
 import { Link, NavLink } from 'react-router-dom'
-import { sessionStub } from '../data/sessionStub'
+import { useAuth } from '../lib/auth'
 
 export default function Topbar({ menuOpen, onMenuToggle }) {
+  const { session, profile, ready } = useAuth()
+  const balance = profile?.points_balance ?? 0
+
   return (
     <header className="app-topbar">
       <div className="app-topbar-left">
@@ -23,10 +26,10 @@ export default function Topbar({ menuOpen, onMenuToggle }) {
         </NavLink>
       </div>
       <div className="app-topbar-right">
-        {sessionStub.isAuthed ? (
+        {ready && session ? (
           <>
             <Link to="/profile" className="balance-chip">
-              {sessionStub.balance} баллов
+              {balance} баллов
             </Link>
             <Link to="/profile" className="top-btn top-btn-dark">
               Профиль
