@@ -7,6 +7,7 @@ import Topbar from './Topbar'
 export default function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [generateOpen, setGenerateOpen] = useState(false)
+  const [catalogEpoch, setCatalogEpoch] = useState(0)
   const location = useLocation()
 
   useEffect(() => {
@@ -52,10 +53,14 @@ export default function AppShell() {
           <Sidebar onNavigate={closeMenu} />
         </div>
         <section className="card page-card app-content">
-          <Outlet context={{ generateAction }} />
+          <Outlet context={{ generateAction, catalogEpoch }} />
         </section>
       </div>
-      <GenerateModal open={generateOpen} onClose={() => setGenerateOpen(false)} />
+      <GenerateModal
+        open={generateOpen}
+        onClose={() => setGenerateOpen(false)}
+        onCompleted={() => setCatalogEpoch((value) => value + 1)}
+      />
     </div>
   )
 }

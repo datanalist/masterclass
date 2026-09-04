@@ -1,8 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/generate-card.js": {
+      "maxDuration": 60
+    },
+    "api/detect-subject.js": {
+      "maxDuration": 20
+    }
+  },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
