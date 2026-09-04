@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
+import GenerateModal from './GenerateModal'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 
 export default function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [generateOpen, setGenerateOpen] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
@@ -13,18 +15,22 @@ export default function AppShell() {
 
   useEffect(() => {
     const previous = document.body.style.overflow
-    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    document.body.style.overflow = menuOpen || generateOpen ? 'hidden' : ''
     return () => {
       document.body.style.overflow = previous
     }
-  }, [menuOpen])
+  }, [menuOpen, generateOpen])
 
   const closeMenu = () => setMenuOpen(false)
 
   const generateAction = (
-    <NavLink to="/add" className="shell-generate">
+    <button
+      type="button"
+      className="shell-generate"
+      onClick={() => setGenerateOpen(true)}
+    >
       Генерация
-    </NavLink>
+    </button>
   )
 
   return (
@@ -49,6 +55,7 @@ export default function AppShell() {
           <Outlet context={{ generateAction }} />
         </section>
       </div>
+      <GenerateModal open={generateOpen} onClose={() => setGenerateOpen(false)} />
     </div>
   )
 }
