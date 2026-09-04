@@ -17,6 +17,7 @@ dist-ssr
 
 .superpowers/
 .worktrees/
+.vercel
 
 # Editor directories and files
 .vscode/*
