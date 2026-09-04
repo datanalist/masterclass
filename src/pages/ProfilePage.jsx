@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import PageLayout from '../components/PageLayout'
+import { sessionStub } from '../data/sessionStub'
 
 const PACKAGES = [
   { id: 's', title: '100 баллов' },
@@ -14,7 +15,7 @@ export default function ProfilePage() {
         Баланс, пакеты пополнения и выход из аккаунта — визуальные заглушки без эквайринга.
       </p>
       <div className="balance">
-        <strong>0</strong>
+        <strong>{sessionStub.balance}</strong>
         <span className="muted">баллов</span>
       </div>
       <div className="packages">
