@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../lib/auth'
+import { downloadImage } from '../lib/downloadImage'
 import { useRunGeneration } from '../lib/generation'
 import { supabase } from '../lib/supabase'
+import ImagePreviewModal from './ImagePreviewModal'
 
 const TYPE_OPTIONS = [
   { id: 'photo', label: 'Фото' },
@@ -22,6 +24,8 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
   const [objectCount, setObjectCount] = useState(1)
   const [catalogError, setCatalogError] = useState('')
   const [confirmClose, setConfirmClose] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
 
   const resetForm = () => {
     reset()
@@ -30,6 +34,8 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
     setObjectCount(1)
     setGenerationType('photo')
     setConfirmClose(false)
+    setPreviewOpen(false)
+    setDownloadError('')
   }
 
   const closeQuietly = () => {
@@ -57,6 +63,7 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
 
     const onKey = (event) => {
       if (event.key !== 'Escape') return
+      if (previewOpen) return
       if (isBusy) {
         setConfirmClose(true)
         return
@@ -72,7 +79,7 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
 
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose, isBusy, reset])
+  }, [open, onClose, isBusy, reset, previewOpen])
 
   useEffect(() => {
     if (!open || !supabase) return undefined
@@ -148,14 +155,17 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
       })
       .catch((err) => {
         refreshProfile()
-        onCompleted?.()
         if (err?.code === 'aborted') return
       })
   }
 
+  const resultImageUrl = result?.images?.[0]?.image?.url
+  const resultFilename = `generation-${result?.generationId || 'image'}.png`
+
   if (!open) return null
 
   return (
+    <>
     <div className="modal-backdrop" onClick={requestClose}>
       <div
         className="modal"
@@ -300,8 +310,29 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
                       : 'Не удалось определить, карточка по всему кадру'}
                   </p>
                 ) : null}
-                {result.images?.[0]?.image?.url ? (
-                  <img src={result.images[0].image.url} alt="" className="generation-thumb" />
+                {resultImageUrl ? (
+                  <>
+                    <button
+                      type="button"
+                      className="generation-thumb-btn"
+                      onClick={() => setPreviewOpen(true)}
+                    >
+                      <img src={resultImageUrl} alt="" className="generation-thumb" />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-download"
+                      onClick={() => {
+                        setDownloadError('')
+                        downloadImage(resultImageUrl, resultFilename).catch(() => {
+                          setDownloadError('Не удалось скачать изображение')
+                        })
+                      }}
+                    >
+                      Скачать
+                    </button>
+                    {downloadError ? <p className="modal-status is-failed">{downloadError}</p> : null}
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -342,6 +373,13 @@ export default function GenerateModal({ open, onClose, onCompleted, onOpenAuth }
         )}
       </div>
     </div>
+    <ImagePreviewModal
+      open={previewOpen}
+      src={resultImageUrl}
+      filename={resultFilename}
+      onClose={() => setPreviewOpen(false)}
+    />
+    </>
   )
 }
 

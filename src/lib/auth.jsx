@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabase.js'
 
 const AuthContext = createContext({
@@ -16,6 +16,8 @@ export function AuthProvider({ children }) {
   const [ready, setReady] = useState(!supabase)
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
+  const userIdRef = useRef(null)
+  userIdRef.current = session?.user?.id ?? null
 
   useEffect(() => {
     if (!supabase) return undefined
@@ -29,6 +31,7 @@ export function AuthProvider({ children }) {
 
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next)
+      if (!next?.user?.id) setProfile(null)
     })
 
     return () => {
@@ -50,7 +53,7 @@ export function AuthProvider({ children }) {
       .eq('id', session.user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled) setProfile(data ?? null)
+        if (!cancelled && userIdRef.current === session.user.id) setProfile(data ?? null)
       })
 
     return () => {
@@ -60,15 +63,20 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => {
     const refreshProfile = async () => {
-      if (!supabase || !session?.user?.id) {
+      const userId = userIdRef.current
+      if (!supabase || !userId) {
         setProfile(null)
         return
       }
       const { data } = await supabase
         .from('profiles')
         .select('id, email, points_balance')
-        .eq('id', session.user.id)
+        .eq('id', userId)
         .maybeSingle()
+      if (userIdRef.current !== userId) {
+        if (!userIdRef.current) setProfile(null)
+        return
+      }
       setProfile(data ?? null)
     }
 
@@ -102,6 +110,9 @@ export function AuthProvider({ children }) {
         return data
       },
       signOut: async () => {
+        userIdRef.current = null
+        setProfile(null)
+        setSession(null)
         if (!supabase) return
         await supabase.auth.signOut()
       },

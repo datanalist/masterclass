@@ -11,7 +11,29 @@ const PACKAGES = [
 
 export default function ProfilePage() {
   const { openAuth } = useOutletContext()
-  const { session, profile, signOut } = useAuth()
+  const { ready, session, profile, signOut } = useAuth()
+
+  if (!ready) {
+    return (
+      <PageLayout title="Профиль">
+        <p className="muted">Загрузка…</p>
+      </PageLayout>
+    )
+  }
+
+  if (!session) {
+    return (
+      <PageLayout title="Профиль">
+        <p className="muted">Войдите, чтобы видеть баланс и управлять баллами.</p>
+        <div className="actions">
+          <button type="button" className="btn" onClick={openAuth}>
+            Войти
+          </button>
+        </div>
+        {!supabase ? <p className="muted">Supabase не настроен.</p> : null}
+      </PageLayout>
+    )
+  }
 
   return (
     <PageLayout title="Профиль">
@@ -30,15 +52,9 @@ export default function ProfilePage() {
         ))}
       </div>
       <div className="actions">
-        {session ? (
-          <button type="button" className="btn btn-ghost" onClick={() => signOut()}>
-            Выйти
-          </button>
-        ) : (
-          <button type="button" className="btn" onClick={openAuth}>
-            Войти
-          </button>
-        )}
+        <button type="button" className="btn btn-ghost" onClick={() => signOut()}>
+          Выйти
+        </button>
       </div>
       {!supabase ? <p className="muted">Supabase не настроен.</p> : null}
     </PageLayout>
