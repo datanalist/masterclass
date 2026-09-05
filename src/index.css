@@ -975,6 +975,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 14px;
+  padding: 10px 4px 18px;
 }
 
 .generation-card {
@@ -983,6 +984,24 @@ textarea {
   padding: 12px;
   border-radius: 18px;
   background: var(--stat-bg);
+  transform: scale(1);
+  transform-origin: center center;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.generation-card:hover {
+  z-index: 2;
+  transform: scale(1.08);
+  box-shadow: 0 16px 36px rgb(17 24 39 / 14%);
+}
+
+.generation-thumb-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
 }
 
 .generation-thumb {
@@ -991,6 +1010,34 @@ textarea {
   object-fit: cover;
   border-radius: 14px;
   background: #eceef1;
+}
+
+.btn-download {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.image-preview-backdrop {
+  z-index: 50;
+}
+
+.image-preview-modal {
+  width: min(860px, 100%);
+}
+
+.image-preview-full {
+  display: block;
+  width: 100%;
+  max-height: min(72svh, 720px);
+  object-fit: contain;
+  border-radius: 18px;
+  background: #f3f4f6;
 }
 
 .generation-thumb.is-empty {

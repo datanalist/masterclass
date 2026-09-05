@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 import { useAuth } from '../lib/auth'
+import { downloadImage } from '../lib/downloadImage'
 import { supabase } from '../lib/supabase'
 
 const OUTPUT_BUCKET = 'generation-outputs'
@@ -10,6 +12,8 @@ export default function CatalogPage() {
   const { session, ready } = useAuth()
   const [rows, setRows] = useState([])
   const [loadError, setLoadError] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [downloadErrorId, setDownloadErrorId] = useState('')
 
   useEffect(() => {
     if (!ready || !session || !supabase) {
@@ -21,8 +25,9 @@ export default function CatalogPage() {
     supabase
       .from('generations')
       .select(
-        'id, generation_type, status, object_count, cost_points, created_at, error_message, generation_assets ( storage_path, sort_order )',
+        'id, generation_type, status, object_count, cost_points, created_at, generation_assets ( storage_path, sort_order )',
       )
+      .neq('status', 'failed')
       .order('created_at', { ascending: false })
       .then(async ({ data, error }) => {
         if (cancelled) return
@@ -32,9 +37,7 @@ export default function CatalogPage() {
         }
         const list = data ?? []
         const paths = list.flatMap((row) =>
-          row.status === 'failed'
-            ? []
-            : (row.generation_assets ?? []).map((asset) => asset.storage_path),
+          (row.generation_assets ?? []).map((asset) => asset.storage_path),
         )
         let signedByPath = {}
         if (paths.length > 0) {
@@ -53,15 +56,12 @@ export default function CatalogPage() {
             const assets = [...(row.generation_assets ?? [])].sort(
               (a, b) => a.sort_order - b.sort_order,
             )
-            const hidePaidPreview = row.status === 'failed'
+            const previewPath = assets[0]?.storage_path
             return {
               ...row,
-              previewUrl:
-                hidePaidPreview || !assets[0]
-                  ? null
-                  : signedByPath[assets[0].storage_path] ?? null,
-              assetCount: hidePaidPreview ? 0 : assets.length,
-              hiddenAssetCount: hidePaidPreview ? assets.length : 0,
+              previewUrl: previewPath ? signedByPath[previewPath] ?? null : null,
+              assetCount: assets.length,
+              filename: filenameFromPath(previewPath, row.id),
             }
           }),
         )
@@ -123,7 +123,13 @@ export default function CatalogPage() {
           {rows.map((row) => (
             <article key={row.id} className="generation-card">
               {row.previewUrl ? (
-                <img src={row.previewUrl} alt="" className="generation-thumb" />
+                <button
+                  type="button"
+                  className="generation-thumb-btn"
+                  onClick={() => setPreview({ src: row.previewUrl, filename: row.filename })}
+                >
+                  <img src={row.previewUrl} alt="" className="generation-thumb" />
+                </button>
               ) : (
                 <div className="generation-thumb is-empty">Нет превью</div>
               )}
@@ -133,19 +139,43 @@ export default function CatalogPage() {
                   {row.generation_type === 'card' ? 'Карточка' : 'Фото'} · {row.assetCount}/
                   {row.object_count} · {row.cost_points} баллов
                 </p>
-                {row.status === 'failed' && row.hiddenAssetCount > 0 ? (
-                  <p className="muted">Превью скрыто: генерация не завершена.</p>
+                {row.previewUrl ? (
+                  <button
+                    type="button"
+                    className="btn-download"
+                    onClick={() => {
+                      setDownloadErrorId('')
+                      downloadImage(row.previewUrl, row.filename).catch(() => {
+                        setDownloadErrorId(row.id)
+                      })
+                    }}
+                  >
+                    Скачать
+                  </button>
                 ) : null}
-                {row.status === 'failed' && row.error_message ? (
-                  <p className="muted">{row.error_message}</p>
+                {downloadErrorId === row.id ? (
+                  <p className="modal-status is-failed">Не удалось скачать изображение</p>
                 ) : null}
               </div>
             </article>
           ))}
         </div>
       ) : null}
+
+      <ImagePreviewModal
+        open={Boolean(preview?.src)}
+        src={preview?.src}
+        filename={preview?.filename}
+        onClose={() => setPreview(null)}
+      />
     </div>
   )
+}
+
+function filenameFromPath(storagePath, generationId) {
+  const name = String(storagePath || '').split('/').pop()
+  if (name && /\.(png|jpe?g|webp)$/i.test(name)) return name
+  return `generation-${generationId}.png`
 }
 
 function statusLabel(status) {
