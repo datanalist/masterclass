@@ -55,7 +55,9 @@ export default function ImagePreviewModal({ open, src, filename, onClose }) {
             ×
           </button>
         </header>
-        <img src={src} alt="" className="image-preview-full" />
+        <div className="image-preview-frame">
+          <img src={src} alt="" className="image-preview-full" />
+        </div>
         {error ? <p className="modal-status is-failed">{error}</p> : null}
         <div className="modal-actions">
           <button type="button" className="btn-cancel" onClick={onClose}>
