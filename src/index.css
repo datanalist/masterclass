@@ -1028,16 +1028,38 @@ textarea {
 }
 
 .image-preview-modal {
+  display: flex;
+  flex-direction: column;
   width: min(860px, 100%);
+  max-height: min(92svh, 860px);
+  overflow: hidden;
+}
+
+.image-preview-modal .modal-head {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.image-preview-modal .modal-actions {
+  flex-shrink: 0;
+}
+
+.image-preview-frame {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #f3f4f6;
 }
 
 .image-preview-full {
   display: block;
   width: 100%;
-  max-height: min(72svh, 720px);
+  height: 100%;
+  max-height: min(58svh, 560px);
   object-fit: contain;
-  border-radius: 18px;
-  background: #f3f4f6;
 }
 
 .generation-thumb.is-empty {
