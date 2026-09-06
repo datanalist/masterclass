@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test ./server/generation/generateCardImage.test.js ./server/generation/persist.test.js ./src/lib/generation/runGenerationJob.test.js ./src/lib/generation/detectKeySubject.test.js"
+    "test": "node --test ./server/generation/generateCardImage.test.js ./server/generation/persist.test.js ./src/lib/generation/runGenerationJob.test.js ./src/lib/generation/detectKeySubject.test.js ./supabase/functions/_shared/receipt.test.js ./supabase/functions/_shared/amount.test.js ./supabase/functions/_shared/handleCreatePayment.test.js ./supabase/functions/_shared/handleYookassaWebhook.test.js ./src/lib/payments/banner.test.js ./src/lib/payments/createPayment.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.115.0",
