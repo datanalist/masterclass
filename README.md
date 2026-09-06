@@ -110,8 +110,10 @@ src/
     auth.jsx              сессия + профиль + signIn / signUp / signOut
     supabase.js           браузерный клиент
     generation/           клиентский оркестратор фичи «генерация»
+    payments/             клиент YooKassa: create-payment, polling
 server/generation/        общий серверный код (Vite + Vercel)
 api/                      тонкие Vercel-хендлеры → server/generation
+supabase/functions/       Edge Functions (create-payment, yookassa-webhook)
 supabase/migrations/      схема, RLS, RPC, бакеты
 docs/                     ТЗ и заметки (не код)
 ```
@@ -177,11 +179,11 @@ docs/                     ТЗ и заметки (не код)
 | `generations` | джоб: тип, статус, стоимость, пожелания |
 | `generation_assets` | готовые картинки (порядок `sort_order`) |
 | `generation_tariffs` | цена за объект |
-| `credit_packages` | пакеты пополнения (`s` / `m` / `l`) |
+| `credit_packages` | пакеты пополнения (`starter` / `growth` / `pro`; `s` / `m` / `l` выключены) |
 | `balance_transactions` | леджер: `signup_bonus`, `topup`, `generation_spend`, `refund` |
 | `app_settings` | в т.ч. бонус регистрации |
 
-**Публичные RPC** (клиент вызывает их, реализация в `private.*`)
+**RPC** (реализация в `private.*`; клиент вызывает не все — см. колонку «Когда»)
 
 | RPC | Когда |
 | --- | --- |
@@ -189,7 +191,8 @@ docs/                     ТЗ и заметки (не код)
 | `classify_product` | категория + detected label |
 | `start_generation` | списание и создание джоба |
 | `fail_own_generation` | ошибка/отмена со стороны владельца |
-| `redeem_package` | мгновенное начисление пакета (эквайринга нет) |
+| `redeem_package` | только service role / локалка |
+| `finalize_yookassa_payment` | только service role — webhook начисляет пакет после оплаты |
 | `delete_product` | удаление товара без активных генераций |
 | `claim_generation_persist` / `persist_generation_asset` | сервер пишет ассеты |
 
@@ -202,21 +205,23 @@ docs/                     ТЗ и заметки (не код)
 | Файл | Содержание |
 | --- | --- |
 | [`docs/tz.md`](docs/tz.md) | продуктовое ТЗ (каталог, генерация, auth, профиль) |
-| [`docs/pay.md`](docs/pay.md) | черновик оплаты YooKassa + Edge Functions — **ещё не реализовано** |
+| [`docs/pay.md`](docs/pay.md) | черновик; актуальная спека — [`docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md`](docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md) |
 | [`docs/comment.md`](docs/comment.md) | короткая заметка (`npm run dev`) |
 | [`docs/superpowers/specs/`](docs/superpowers/specs/2026-09-04-app-shell-sidebar-topbar-design.md) | дизайн оболочки (сайдбар / topbar) |
+| [`docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md`](docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md) | спека пополнения через YooKassa |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/2026-09-04-app-shell-sidebar-topbar.md) | план той же задачи |
+| [`docs/superpowers/plans/2026-09-06-yookassa-points-payment.md`](docs/superpowers/plans/2026-09-06-yookassa-points-payment.md) | план пополнения через YooKassa |
 
-В `docs/pay.md` указан другой `project_ref`, чем URL в `.env.example`. Перед работой с оплатой сверить, какой проект Supabase актуален.
+Оплата: URL функций берётся из `VITE_SUPABASE_URL` в `.env.local`. Секреты YooKassa и `PUBLIC_APP_URL` — в `supabase secrets`, не в клиент. Чек 54-ФЗ пока не отправляется (`buildReceipt` — заглушка).
+
+**Перед живыми платежами (обязательно).** Автотестов на `private.finalize_yookassa_payment` нет. На живой БД подтвердить вручную: первый `succeeded` начисляет пакет один раз; повторный `succeeded` с тем же `provider_payment_id` баланс не удваивает; `canceled` не начисляет; нет строки в `payment_transactions` — ошибка, начисления нет; `succeeded`, затем `canceled` — баланс не откатывается.
 
 ---
 
 ## Что уже есть и чего нет
 
-**Есть:** оболочка кабинета, попап входа/регистрации (email + пароль, без confirm-письма), бонус при регистрации, гостевые экраны без остатка баланса после выхода, модалка генерации, списание/рефанд баллов, каталог с превью, деплой API на Vercel.
+**Есть:** оболочка кабинета, попап входа/регистрации (email + пароль, без confirm-письма), бонус при регистрации, гостевые экраны без остатка баланса после выхода, модалка генерации, списание/рефанд баллов, каталог с превью, деплой API на Vercel, пополнение через YooKassa: `create-payment` + `yookassa-webhook`, пакеты `starter` / `growth` / `pro`.
 
 **Пока заглушки или только в ТЗ:**
-
-- пакеты на `/profile` — кнопки `disabled`, эквайринга нет (в ТЗ: после выбора пакета баллы сразу; RPC `redeem_package` в базе есть, из UI не вызывается; в `docs/pay.md` — будущая YooKassa);
 - «забыли пароль» из ТЗ не сделано;
 - отдельной страницы товара / повторного скачивания всех материалов нет — каталог показывает превью генераций.

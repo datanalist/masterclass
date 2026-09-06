@@ -1,3 +1,5 @@
+> **Устарело.** Не берите из этого файла `project_ref` и URL Edge Functions для кабинета YooKassa. Актуальная спека — [`docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md`](superpowers/specs/2026-09-06-yookassa-points-payment-design.md). URL webhook собирайте из `VITE_SUPABASE_URL` / `SUPABASE_URL` текущего проекта.
+
 ## ТЗ: оплата баллов через YooKassa + Supabase Edge Functions
 
 Система работает так: авторизованный пользователь выбирает пакет пополнения в интерфейсе, фронтенд отправляет только `package_id` в защищенную функцию `create-payment`, функция на сервере проверяет пользователя по JWT, сама определяет сумму и количество баллов, создает платеж в YooKassa и возвращает ссылку на оплату; после оплаты YooKassa отправляет webhook в `yookassa-webhook`, где платеж проверяется и один раз фиксируется в БД, после чего пользователю начисляются баллы в `profiles.points_balance` и создаются записи в транзакциях, что исключает двойные зачисления и сохраняет полную прослеживаемость операций.
