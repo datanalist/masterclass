@@ -436,6 +436,18 @@ textarea {
   color: var(--text);
 }
 
+.package-price {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.notice {
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
 .choice[aria-pressed='true'],
 .package[aria-pressed='true'] {
   border-color: transparent;
