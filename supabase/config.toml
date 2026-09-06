@@ -1,0 +1,5 @@
+[functions.create-payment]
+verify_jwt = true
+
+[functions.yookassa-webhook]
+verify_jwt = false
