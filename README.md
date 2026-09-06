@@ -7,7 +7,7 @@
 - **фото** — одно или несколько изображений;
 - **карточка** — карусель кадров; для карточки сервер дополнительно определяет ключевой объект на фото (`detect-subject`).
 
-Генерацию может запустить только авторизованный пользователь. Баллы списываются на старте (`start_generation`); при ошибке или отмене часть/все баллы возвращаются.
+Генерацию может запустить только авторизованный пользователь. Баллы списываются на старте (`start_generation`); при ошибке или отмене часть/все баллы возвращаются. Пополнение — пакеты на `/profile` через YooKassa.
 
 ---
 
@@ -19,6 +19,7 @@
 | Бэкенд API | те же модули в `server/generation/` — Vite-плагин локально, Vercel Functions в проде |
 | Данные и auth | Supabase (Postgres + Auth + Storage + RPC) |
 | Картинки | OpenRouter (`OPENROUTER_IMAGE_MODEL` / `OPENROUTER_DETECT_MODEL`) |
+| Оплата | YooKassa Payments API v3 + Edge Functions `create-payment` / `yookassa-webhook` |
 | Хостинг | Vercel (`vercel.json`) |
 
 ---
@@ -36,13 +37,15 @@ npm run dev
 
 | Команда | Что делает |
 | --- | --- |
-| `npm run dev` | dev-сервер + локальные API |
+| `npm run dev` | dev-сервер + локальные API генерации |
 | `npm run build` | production-сборка |
 | `npm run preview` | превью сборки (те же API-middleware) |
 | `npm run lint` | Oxlint |
-| `npm test` | unit-тесты генерации (Node test runner) |
+| `npm test` | unit-тесты генерации и оплаты (`node --test`) |
 
 Миграции лежат в [`supabase/migrations/`](supabase/migrations/). Применять через Supabase CLI / дашборд проекта.
+
+Edge Functions для оплаты: `supabase functions serve` (локально) или `supabase functions deploy`. Webhook деплоить с `--no-verify-jwt`.
 
 ---
 
@@ -52,15 +55,23 @@ npm run dev
 
 **Клиент (`VITE_*`):**
 
-- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_URL` — также база URL Edge Functions: `{VITE_SUPABASE_URL}/functions/v1/<name>`
 - `VITE_SUPABASE_ANON_KEY` или `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-**Сервер (локально в `.env.local`, на Vercel — без префикса `VITE_`):**
+**Сервер генерации (локально в `.env.local`, на Vercel — без префикса `VITE_`):**
 
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — проверка JWT, подпись URL бакетов, запись результатов
 - `OPENROUTER_API_KEY` и связанные `OPENROUTER_*` — модели, таймауты, referer
 
-Клиент без URL/ключа Supabase работает, но auth и каталог недоступны (`src/lib/supabase.js` вернёт `null`).
+**Секреты Edge Functions** (`supabase secrets set`, не `VITE_*`):
+
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`
+- `PUBLIC_APP_URL` — origin для `return_url` (`{PUBLIC_APP_URL}/profile?payment=pending`), не брать URL с клиента
+
+Клиент без URL/ключа Supabase работает, но auth, каталог и оплата недоступны (`src/lib/supabase.js` вернёт `null`).
+
+В кабинете YooKassa URL уведомлений: `{SUPABASE_URL}/functions/v1/yookassa-webhook`.
 
 ---
 
@@ -70,12 +81,13 @@ npm run dev
 
 | URL | Страница | Назначение |
 | --- | --- | --- |
-| `/` | [`CatalogPage.jsx`](src/pages/CatalogPage.jsx) | список генераций пользователя, превью из Storage |
+| `/` | [`CatalogPage.jsx`](src/pages/CatalogPage.jsx) | список генераций (без `failed`), превью, просмотр и скачивание первого кадра |
 | `/auth` | редирект на `/` + модалка | старая ссылка открывает попап входа |
-| `/profile` | [`ProfilePage.jsx`](src/pages/ProfilePage.jsx) | гость — только CTA входа; в сессии — баланс, заглушки пакетов, выход |
+| `/profile` | [`ProfilePage.jsx`](src/pages/ProfilePage.jsx) | гость — CTA входа; в сессии — баланс, пакеты YooKassa, баннер после оплаты, выход |
+| `/profile?payment=pending` | тот же профиль | возврат с YooKassa: баннер и polling баланса |
 | `/catalog`, `/add`, `*` | редирект на `/` | старые/несуществующие пути |
 
-Кнопка **«Генерация»** открывает [`GenerateModal.jsx`](src/components/GenerateModal.jsx), а не отдельный роут. После успеха модалка увеличивает `catalogEpoch` — каталог перечитывается.
+Кнопка **«Генерация»** открывает [`GenerateModal.jsx`](src/components/GenerateModal.jsx), а не отдельный роут. После успеха модалка увеличивает `catalogEpoch` — каталог перечитывается. В модалке и в каталоге клик по превью открывает [`ImagePreviewModal.jsx`](src/components/ImagePreviewModal.jsx); кнопка «Скачать» сохраняет текущий кадр ([`src/lib/downloadImage.js`](src/lib/downloadImage.js)).
 
 Навигация: [`Sidebar.jsx`](src/components/Sidebar.jsx) (Мои генерации, Профиль), [`Topbar.jsx`](src/components/Topbar.jsx) (чип баланса только в сессии, иначе «Войти»).
 
@@ -90,7 +102,7 @@ npm run dev
 | Состояние | Topbar | `/profile` | `/` (каталог) |
 | --- | --- | --- | --- |
 | Гость | «Войти» | текст + «Войти», без суммы и пакетов | CTA войти, счётчики «—» |
-| В сессии | чип `{N} баллов` + «Профиль» | баланс, пакеты-заглушки, «Выйти» | список генераций / пустое состояние |
+| В сессии | чип `{N} баллов` + «Профиль» | баланс, пакеты `starter` / `growth` / `pro`, «Выйти» | список генераций / пустое состояние |
 
 Регистрация: RPC `register_account` (без confirm-письма) → сразу `signInWithPassword`. Триггер на `auth.users` создаёт `profiles` и начисляет бонус (`app_settings.signup_bonus_points`, в сиде **50**).
 
@@ -105,17 +117,22 @@ src/
   App.jsx                 маршруты
   index.css               токены и оболочка
   pages/                  экраны (каталог, профиль)
-  components/             AppShell, Sidebar, Topbar, AuthModal, GenerateModal, PageLayout
+  components/             AppShell, Sidebar, Topbar, AuthModal, GenerateModal,
+                          ImagePreviewModal, PageLayout
   lib/
     auth.jsx              сессия + профиль + signIn / signUp / signOut
     supabase.js           браузерный клиент
+    downloadImage.js      скачивание кадра по URL
     generation/           клиентский оркестратор фичи «генерация»
-    payments/             клиент YooKassa: create-payment, polling
+    payments/             клиент YooKassa: create-payment, баннер polling
 server/generation/        общий серверный код (Vite + Vercel)
 api/                      тонкие Vercel-хендлеры → server/generation
-supabase/functions/       Edge Functions (create-payment, yookassa-webhook)
+supabase/functions/
+  _shared/                общая логика оплаты + unit-тесты (Deno и Node)
+  create-payment/         JWT обязателен
+  yookassa-webhook/       verify_jwt = false
 supabase/migrations/      схема, RLS, RPC, бакеты
-docs/                     ТЗ и заметки (не код)
+docs/                     ТЗ, спеки, планы, техдолг
 ```
 
 ### Клиентская генерация (`src/lib/generation/`)
@@ -132,7 +149,7 @@ docs/                     ТЗ и заметки (не код)
 | `useGenerateCardImage.js` | хук вокруг одного вызова картинки |
 | `*.test.js` | тесты оркестратора и detect |
 
-### Сервер (`server/generation/` + `api/`)
+### Сервер генерации (`server/generation/` + `api/`)
 
 | Файл | Роль |
 | --- | --- |
@@ -148,6 +165,30 @@ docs/                     ТЗ и заметки (не код)
 
 Логика генерации **не дублируется**: и локальный Vite, и Vercel вызывают одни и те же `writeNodeResponse` / `writeDetectNodeResponse`.
 
+### Клиентская оплата (`src/lib/payments/`)
+
+| Файл | Роль |
+| --- | --- |
+| `createPayment.js` | `POST {VITE_SUPABASE_URL}/functions/v1/create-payment` с JWT и `{ package_id }` |
+| `banner.js` | статус баннера после `?payment=pending` (интервал 2 с, до 6 тиков) |
+| `*.test.js` | тесты клиента и баннера |
+
+Клиент передаёт только `package_id`. Сумму и баллы считает сервер.
+
+### Edge Functions оплаты (`supabase/functions/`)
+
+| Файл | Роль |
+| --- | --- |
+| `_shared/handleCreatePayment.js` | HTTP `create-payment`: JWT, пакет из БД, платёж YooKassa, строка `pending` |
+| `_shared/handleYookassaWebhook.js` | HTTP webhook: не доверяет телу, читает платёж в API YooKassa, вызывает RPC |
+| `_shared/amount.js` | формат `"490.00"` и сверка суммы |
+| `_shared/receipt.js` | `buildReceipt` — заглушка 54-ФЗ (`undefined`, в логе `receipt=omitted`) |
+| `_shared/*.test.js` | unit-тесты хендлеров |
+| `create-payment/index.ts` | Deno-обёртка, `verify_jwt = true` |
+| `yookassa-webhook/index.ts` | Deno-обёртка, `verify_jwt = false` |
+
+Общая логика живёт в `_shared/`: и Deno, и `node --test` импортируют одни и те же файлы.
+
 ---
 
 ## Поток генерации
@@ -159,15 +200,39 @@ docs/                     ТЗ и заметки (не код)
 5. RPC `classify_product` сохраняет категорию и лейбл.
 6. RPC `start_generation` считает стоимость по `generation_tariffs`, списывает баллы, создаёт `generations` со статусом `queued` → дальше клиент крутит объекты.
 7. На каждый объект: `POST /api/generate-card` с JWT. Сервер проверяет джоб, вызывает OpenRouter, пишет файл в `generation-outputs` и строку в `generation_assets`.
-8. Ошибка или отмена → `fail_own_generation` (рефанд). Успех виден в каталоге по signed URL (TTL 1 час).
+8. Ошибка или отмена → `fail_own_generation` (рефанд). Успех виден в каталоге по signed URL (TTL 1 час). Проваленные джобы в списке не показываются.
 
 Тарифы в сиде: **фото 40** балла/объект, **карточка 60**. Бонус при регистрации: **50** (`app_settings.signup_bonus_points`).
 
 ---
 
+## Пополнение баллов (YooKassa)
+
+1. `/profile` читает активные пакеты из `credit_packages`.
+2. Клик по пакету → `POST create-payment` с JWT и `{ package_id }`.
+3. Функция читает пакет, создаёт платёж в YooKassa, пишет `payment_transactions` со статусом `pending`, возвращает `confirmation_url`.
+4. Браузер уходит на YooKassa. `return_url` = `{PUBLIC_APP_URL}/profile?payment=pending`.
+5. Пользователь возвращается на профиль: баннер («Оплата принята…» / «Баллы начислены» / таймаут) и polling баланса каждые 2 с, до 6 тиков (~12 с).
+6. YooKassa шлёт webhook. Функция заново читает платёж в API и вызывает `finalize_yookassa_payment`.
+7. RPC в одной транзакции: `pending → succeeded`, плюс `points_balance`, плюс `balance_transactions` с `kind = 'topup'`. Повтор с тем же `provider_payment_id` баланс не удваивает.
+
+Пакеты в сиде:
+
+| id | Баллы | Цена |
+| --- | --- | --- |
+| `starter` | 100 | 490 ₽ |
+| `growth` | 300 | 1290 ₽ |
+| `pro` | 750 | 2790 ₽ |
+
+Старые пакеты `s` / `m` / `l` выключены (`is_active = false`), строки не удаляются. Несколько `pending` у одного пользователя разрешены. Чек 54-ФЗ пока не отправляется.
+
+**Перед живыми платежами (обязательно).** Автотестов на `private.finalize_yookassa_payment` нет. На живой БД подтвердить вручную: первый `succeeded` начисляет пакет один раз; повторный `succeeded` с тем же `provider_payment_id` баланс не удваивает; `canceled` не начисляет; нет строки в `payment_transactions` — ошибка, начисления нет; `succeeded`, затем `canceled` — баланс не откатывается. Если сначала пришёл `canceled`/`failed`, а потом `succeeded` — баллы начислятся (статус до успеха не sticky).
+
+---
+
 ## База и Storage
 
-Стартовая схема: [`supabase/migrations/20260904223900_init_app_schema.sql`](supabase/migrations/20260904223900_init_app_schema.sql). Последующие файлы в той же папке уточняют lifecycle генерации, рефанд и регистрацию без email confirm.
+Стартовая схема: [`supabase/migrations/20260904223900_init_app_schema.sql`](supabase/migrations/20260904223900_init_app_schema.sql). Дальше в той же папке — lifecycle генерации, рефанд, регистрация без email confirm и оплата ([`20260906104208_yookassa_payments.sql`](supabase/migrations/20260906104208_yookassa_payments.sql)).
 
 **Таблицы**
 
@@ -180,7 +245,8 @@ docs/                     ТЗ и заметки (не код)
 | `generation_assets` | готовые картинки (порядок `sort_order`) |
 | `generation_tariffs` | цена за объект |
 | `credit_packages` | пакеты пополнения (`starter` / `growth` / `pro`; `s` / `m` / `l` выключены) |
-| `balance_transactions` | леджер: `signup_bonus`, `topup`, `generation_spend`, `refund` |
+| `payment_transactions` | леджер YooKassa: `pending` / `succeeded` / `canceled` / `failed` |
+| `balance_transactions` | леджер баллов: `signup_bonus`, `topup`, `generation_spend`, `refund` |
 | `app_settings` | в т.ч. бонус регистрации |
 
 **RPC** (реализация в `private.*`; клиент вызывает не все — см. колонку «Когда»)
@@ -191,7 +257,7 @@ docs/                     ТЗ и заметки (не код)
 | `classify_product` | категория + detected label |
 | `start_generation` | списание и создание джоба |
 | `fail_own_generation` | ошибка/отмена со стороны владельца |
-| `redeem_package` | только service role / локалка |
+| `redeem_package` | только service role / локалка; у `anon` и `authenticated` — `REVOKE` |
 | `finalize_yookassa_payment` | только service role — webhook начисляет пакет после оплаты |
 | `delete_product` | удаление товара без активных генераций |
 | `claim_generation_persist` / `persist_generation_asset` | сервер пишет ассеты |
@@ -205,23 +271,22 @@ docs/                     ТЗ и заметки (не код)
 | Файл | Содержание |
 | --- | --- |
 | [`docs/tz.md`](docs/tz.md) | продуктовое ТЗ (каталог, генерация, auth, профиль) |
-| [`docs/pay.md`](docs/pay.md) | черновик; актуальная спека — [`docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md`](docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md) |
+| [`docs/pay.md`](docs/pay.md) | черновик; актуальная спека — ниже |
 | [`docs/comment.md`](docs/comment.md) | короткая заметка (`npm run dev`) |
-| [`docs/superpowers/specs/`](docs/superpowers/specs/2026-09-04-app-shell-sidebar-topbar-design.md) | дизайн оболочки (сайдбар / topbar) |
+| [`docs/superpowers/specs/2026-09-04-app-shell-sidebar-topbar-design.md`](docs/superpowers/specs/2026-09-04-app-shell-sidebar-topbar-design.md) | дизайн оболочки (сайдбар / topbar) |
 | [`docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md`](docs/superpowers/specs/2026-09-06-yookassa-points-payment-design.md) | спека пополнения через YooKassa |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/2026-09-04-app-shell-sidebar-topbar.md) | план той же задачи |
 | [`docs/superpowers/plans/2026-09-06-yookassa-points-payment.md`](docs/superpowers/plans/2026-09-06-yookassa-points-payment.md) | план пополнения через YooKassa |
-
-Оплата: URL функций берётся из `VITE_SUPABASE_URL` в `.env.local`. Секреты YooKassa и `PUBLIC_APP_URL` — в `supabase secrets`, не в клиент. Чек 54-ФЗ пока не отправляется (`buildReceipt` — заглушка).
-
-**Перед живыми платежами (обязательно).** Автотестов на `private.finalize_yookassa_payment` нет. На живой БД подтвердить вручную: первый `succeeded` начисляет пакет один раз; повторный `succeeded` с тем же `provider_payment_id` баланс не удваивает; `canceled` не начисляет; нет строки в `payment_transactions` — ошибка, начисления нет; `succeeded`, затем `canceled` — баланс не откатывается.
+| [`docs/todos/2026-09-06-yookassa-points-tech-debt.md`](docs/todos/2026-09-06-yookassa-points-tech-debt.md) | открытый техдолг оплаты (тесты RPC, 54-ФЗ, CORS) |
 
 ---
 
 ## Что уже есть и чего нет
 
-**Есть:** оболочка кабинета, попап входа/регистрации (email + пароль, без confirm-письма), бонус при регистрации, гостевые экраны без остатка баланса после выхода, модалка генерации, списание/рефанд баллов, каталог с превью, деплой API на Vercel, пополнение через YooKassa: `create-payment` + `yookassa-webhook`, пакеты `starter` / `growth` / `pro`.
+**Есть:** оболочка кабинета, попап входа/регистрации (email + пароль, без confirm-письма), бонус при регистрации, гостевые экраны без остатка баланса после выхода, модалка генерации, списание/рефанд баллов, каталог без проваленных джобов, превью и скачивание первого кадра (каталог и модалка после успеха), деплой API на Vercel, пополнение через YooKassa (`create-payment` + `yookassa-webhook`), пакеты `starter` / `growth` / `pro`.
 
 **Пока заглушки или только в ТЗ:**
+
 - «забыли пароль» из ТЗ не сделано;
-- отдельной страницы товара / повторного скачивания всех материалов нет — каталог показывает превью генераций.
+- отдельной страницы товара и пакетного скачивания всей карусели нет — скачивается превью (первый кадр);
+- история платежей в UI нет;
+- чек 54-ФЗ не уходит в YooKassa (`buildReceipt` возвращает `undefined`).
